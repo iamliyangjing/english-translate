@@ -24,6 +24,22 @@ type UpdateCardBody = {
   tags?: string;
 };
 
+type CardRow = {
+  id: string;
+  user_id: string;
+  user_email: string | null;
+  source_text: string;
+  target_text: string;
+  source_lang: string;
+  target_lang: string;
+  pronunciation: string | null;
+  tags: string | null;
+  created_at: string;
+  updated_at: string;
+  next_review_at: string;
+  last_grade: number | null;
+};
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -39,7 +55,7 @@ export async function GET(request: Request) {
     const supabase = getSupabase();
     if (supabase) {
       let builder = supabase
-        .from("cards")
+        .from<CardRow>("cards")
         .select("id, source_text, target_text, pronunciation, tags, created_at")
         .eq("user_id", userKey)
         .order("created_at", { ascending: false })
@@ -62,15 +78,14 @@ export async function GET(request: Request) {
         );
       }
 
-      const cards =
-        data?.map((row) => ({
-          id: row.id,
-          sourceText: row.source_text,
-          targetText: row.target_text,
-          pronunciation: row.pronunciation,
-          tags: row.tags,
-          createdAt: row.created_at,
-        })) ?? [];
+      const cards = (data ?? []).map((row) => ({
+        id: row.id,
+        sourceText: row.source_text,
+        targetText: row.target_text,
+        pronunciation: row.pronunciation,
+        tags: row.tags,
+        createdAt: row.created_at,
+      }));
 
       return NextResponse.json({ cards });
     }
@@ -134,7 +149,7 @@ export async function POST(request: Request) {
     const supabase = getSupabase();
     if (supabase) {
       const { data, error } = await supabase
-        .from("cards")
+        .from<CardRow>("cards")
         .insert({
           id,
           user_id: userKey,
