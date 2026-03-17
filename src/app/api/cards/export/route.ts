@@ -31,12 +31,17 @@ export async function GET() {
       );
     }
 
-    const rows =
-      data?.map((card) => [
-        escapeCsv(card.source_text),
-        escapeCsv(card.target_text),
-        escapeCsv(card.pronunciation ?? ""),
-      ]) ?? [];
+    const rows = (
+      (data ?? []) as Array<{
+        source_text: string;
+        target_text: string;
+        pronunciation: string | null;
+      }>
+    ).map((card) => [
+      escapeCsv(card.source_text),
+      escapeCsv(card.target_text),
+      escapeCsv(card.pronunciation ?? ""),
+    ]);
 
     const csv = rows.map((row) => row.join(",")).join("\n");
 
