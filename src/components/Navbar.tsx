@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/", label: "翻译" },
   { href: "/cards", label: "卡片库" },
   { href: "/review", label: "复习" },
+  { href: "/profile", label: "个人页" },
 ];
 
 export default function Navbar() {
@@ -40,9 +41,28 @@ export default function Navbar() {
             <span className="text-neutral-500">加载中...</span>
           ) : session?.user ? (
             <>
-              <span className="hidden text-neutral-600 sm:inline">
-                {session.user.name ?? session.user.email ?? "已登录"}
-              </span>
+              <Link
+                href="/profile"
+                className="hidden items-center gap-2 rounded-full px-3 py-1 text-sm text-neutral-600 transition hover:bg-black/5 hover:text-black sm:inline-flex"
+              >
+                {session.user.image ? (
+                  <img
+                    src={session.user.image}
+                    alt="avatar"
+                    className="h-7 w-7 rounded-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/10 text-xs font-semibold text-neutral-700">
+                    {(session.user.name ?? session.user.email ?? "U")
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </span>
+                )}
+                <span>
+                  {session.user.name ?? session.user.email ?? "已登录"}
+                </span>
+              </Link>
               <button
                 onClick={() => signOut()}
                 className="rounded-full border border-black/10 px-4 py-2 text-sm transition hover:border-black/20 hover:bg-black/5"

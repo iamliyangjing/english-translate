@@ -1,10 +1,15 @@
-"use client";
+﻿"use client";
 
-import { signIn, useSession } from "next-auth/react";
 import { useEffect, useMemo, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 import Modal from "@/components/Modal";
 
 type Direction = "en-zh" | "zh-en";
+
+type ModelConfig = {
+  id: string;
+  isActive: boolean;
+};
 
 const directionMeta = {
   "en-zh": {
@@ -27,14 +32,11 @@ export default function TranslatePanel() {
   const [translation, setTranslation] = useState("");
   const [pronunciation, setPronunciation] = useState("");
   const [tags, setTags] = useState("");
-  const [model, setModel] = useState("");
-  const [apiEndpoint, setApiEndpoint] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [hasConfig, setHasConfig] = useState<boolean | null>(null);
 
   const { status } = useSession();
   const isAuthed = status === "authenticated";
@@ -48,66 +50,29 @@ export default function TranslatePanel() {
     [translation, saving],
   );
 
-  const STORAGE_KEY = "lingua-model";
-  const ENDPOINT_KEY = "lingua-endpoint";
-  const API_KEY_STORAGE = "lingua-api-key";
-
-  const loadModel = () => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setModel(stored);
-    }
-  };
-
-  const loadEndpoint = () => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(ENDPOINT_KEY);
-    if (stored) {
-      setApiEndpoint(stored);
-    }
-  };
-
-  const loadApiKey = () => {
-    if (typeof window === "undefined") return;
-    const stored = window.sessionStorage.getItem(API_KEY_STORAGE);
-    if (stored) {
-      setApiKey(stored);
-    }
-  };
-
-  const persistModel = (value: string) => {
-    if (typeof window === "undefined") return;
-    if (!value.trim()) {
-      window.localStorage.removeItem(STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(STORAGE_KEY, value);
-  };
-
-  const persistEndpoint = (value: string) => {
-    if (typeof window === "undefined") return;
-    if (!value.trim()) {
-      window.localStorage.removeItem(ENDPOINT_KEY);
-      return;
-    }
-    window.localStorage.setItem(ENDPOINT_KEY, value);
-  };
-
-  const persistApiKey = (value: string) => {
-    if (typeof window === "undefined") return;
-    if (!value.trim()) {
-      window.sessionStorage.removeItem(API_KEY_STORAGE);
-      return;
-    }
-    window.sessionStorage.setItem(API_KEY_STORAGE, value);
-  };
-
   useEffect(() => {
-    loadModel();
-    loadEndpoint();
-    loadApiKey();
-  }, []);
+    if (!isAuthed) {
+      setHasConfig(null);
+      return;
+    }
+
+    const load = async () => {
+      try {
+        const res = await fetch("/api/profile/model-configs");
+        const data = await res.json();
+        if (!res.ok) {
+          setHasConfig(false);
+          return;
+        }
+        const configs = (data.configs ?? []) as ModelConfig[];
+        setHasConfig(configs.length > 0);
+      } catch {
+        setHasConfig(false);
+      }
+    };
+
+    load();
+  }, [isAuthed]);
 
   const handleTranslate = async () => {
     if (!canTranslate) return;
@@ -122,9 +87,6 @@ export default function TranslatePanel() {
           text,
           sourceLang: meta.source,
           targetLang: meta.target,
-          model: model.trim() || undefined,
-          apiEndpoint: apiEndpoint.trim() || undefined,
-          apiKey: apiKey.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -133,8 +95,8 @@ export default function TranslatePanel() {
         return;
       }
       setTranslation(data.translation);
-    } catch (error) {
-      setMessage("翻译失败，请检查网络。");
+    } catch {
+      setMessage("翻译失败，请检查网络或配置。");
     } finally {
       setLoading(false);
     }
@@ -163,12 +125,12 @@ export default function TranslatePanel() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data.error ?? "保存失败。");
+        setMessage(data.error ?? "保存卡片失败。" );
         return;
       }
-      setMessage("已加入卡片库。");
-    } catch (error) {
-      setMessage("保存失败，请稍后重试。");
+      setMessage("已加入卡片库。" );
+    } catch {
+      setMessage("保存卡片失败，请稍后再试。" );
     } finally {
       setSaving(false);
     }
@@ -177,7 +139,7 @@ export default function TranslatePanel() {
   const handleSpeak = (content: string, lang: string) => {
     if (!content.trim()) return;
     if (!window.speechSynthesis) {
-      setMessage("当前浏览器不支持语音播放。");
+      setMessage("当前浏览器不支持语音朗读。");
       return;
     }
     const utterance = new SpeechSynthesisUtterance(content);
@@ -190,10 +152,10 @@ export default function TranslatePanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm uppercase tracking-[0.2em] text-neutral-400">
-            双向翻译
+            翻译
           </p>
           <h1 className="font-serif text-3xl font-semibold text-neutral-900">
-            让翻译变成可复习的卡片
+            输入内容，一键翻译并存入卡片库
           </h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -208,14 +170,30 @@ export default function TranslatePanel() {
         </div>
       </div>
 
+      {!isAuthed ? (
+        <div className="mt-4 rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+          登录后可在个人页配置模型与 API Key。
+        </div>
+      ) : hasConfig === false ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <span>你还没有模型配置，请前往个人页添加并设为当前配置。</span>
+          <a
+            href="/profile"
+            className="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+          >
+            去配置
+          </a>
+        </div>
+      ) : null}
+
       <div className="mt-6 grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
         <div className="flex flex-col gap-3">
           <label className="text-sm text-neutral-500">
-            输入 {meta.source}
+            原文 {meta.source}
           </label>
           <textarea
             className="min-h-[180px] w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-base shadow-sm outline-none transition focus:border-black/30"
-            placeholder={`输入要翻译的${meta.source}内容`}
+            placeholder={`输入需要翻译的 ${meta.source} 内容`}
             value={text}
             onChange={(event) => setText(event.target.value)}
           />
@@ -231,14 +209,14 @@ export default function TranslatePanel() {
               onClick={() => handleSpeak(text, meta.sourceTts)}
               className="rounded-full border border-black/10 px-4 py-2 text-sm transition hover:bg-black/5"
             >
-              播放原文
+              朗读原文
             </button>
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
           <label className="text-sm text-neutral-500">
-            {meta.target} 译文
+            译文 {meta.target}
           </label>
           <div className="min-h-[180px] rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-base">
             {translation ? (
@@ -246,7 +224,7 @@ export default function TranslatePanel() {
                 {translation}
               </p>
             ) : (
-              <p className="text-neutral-400">译文将在这里展示</p>
+              <p className="text-neutral-400">翻译结果会显示在这里</p>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -254,7 +232,7 @@ export default function TranslatePanel() {
               onClick={() => handleSpeak(translation, meta.targetTts)}
               className="rounded-full border border-black/10 px-4 py-2 text-sm transition hover:bg-black/5"
             >
-              播放译文
+              朗读译文
             </button>
             <button
               onClick={handleAddCard}
@@ -269,16 +247,16 @@ export default function TranslatePanel() {
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div>
-          <label className="text-sm text-neutral-500">发音/备注（可选）</label>
+          <label className="text-sm text-neutral-500">发音 / 音标</label>
           <input
             className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
-            placeholder="例如：/təˈmeɪtoʊ/"
+            placeholder="例如 /ˈtrævəl/"
             value={pronunciation}
             onChange={(event) => setPronunciation(event.target.value)}
           />
         </div>
         <div>
-          <label className="text-sm text-neutral-500">标签（可选）</label>
+          <label className="text-sm text-neutral-500">标签</label>
           <input
             className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
             placeholder="travel, business, daily"
@@ -294,83 +272,17 @@ export default function TranslatePanel() {
         </p>
       ) : null}
 
-      <div className="mt-6 rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-600">
-        <button
-          onClick={() => setShowAdvanced((prev) => !prev)}
-          className="text-sm font-medium text-neutral-800"
-          type="button"
-        >
-          {showAdvanced ? "收起高级设置" : "展开高级设置"}
-        </button>
-        {showAdvanced ? (
-          <div className="mt-4 grid gap-4">
-            <div>
-              <label className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                模型配置（可选）
-              </label>
-              <input
-                className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
-                placeholder="如 gpt-4o-mini"
-                value={model}
-                onChange={(event) => {
-                  setModel(event.target.value);
-                  persistModel(event.target.value);
-                }}
-              />
-              <p className="mt-2 text-xs text-neutral-400">
-                留空则使用服务器默认模型（OPENAI_MODEL）。
-              </p>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                API Endpoint（可选）
-              </label>
-              <input
-                className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
-                placeholder="https://api.openai.com/v1/chat/completions"
-                value={apiEndpoint}
-                onChange={(event) => {
-                  setApiEndpoint(event.target.value);
-                  persistEndpoint(event.target.value);
-                }}
-              />
-              <p className="mt-2 text-xs text-neutral-400">
-                仅支持 OpenAI-compatible Chat Completions 格式。
-              </p>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                API Key（仅本地保存）
-              </label>
-              <input
-                type="password"
-                className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
-                placeholder="sk-..."
-                value={apiKey}
-                onChange={(event) => {
-                  setApiKey(event.target.value);
-                  persistApiKey(event.target.value);
-                }}
-              />
-              <p className="mt-2 text-xs text-neutral-400">
-                存在浏览器会话中，刷新仍可用，关闭浏览器后清除。
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
       <Modal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
         title="登录后才能保存卡片"
-        description="登录后可保存翻译、导出 Anki、开始复习。"
+        description="登录后可将翻译结果保存到卡片库，并同步到 Anki 复习。"
         actions={
           <button
             onClick={() => signIn(undefined, { callbackUrl: window.location.href })}
             className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
           >
-            立即登录
+            去登录
           </button>
         }
       />

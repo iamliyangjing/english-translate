@@ -31,3 +31,18 @@ create table if not exists public.users (
 
 create unique index if not exists users_provider_account_id
   on public.users(provider, provider_account_id);
+
+create table if not exists public.model_configs (
+  id uuid primary key,
+  user_id text not null,
+  name text not null,
+  model text not null,
+  api_endpoint text,
+  api_key text not null,
+  is_active boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_model_configs_user on public.model_configs(user_id);
+create index if not exists idx_model_configs_user_active on public.model_configs(user_id, is_active);

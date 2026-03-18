@@ -1,4 +1,10 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { getSupabase } from "@/lib/supabase";
+import { getSqlite } from "@/lib/db";
+
+export const runtime = "nodejs";
 
 type TranslateBody = {
   text?: string;
@@ -7,6 +13,12 @@ type TranslateBody = {
   model?: string;
   apiEndpoint?: string;
   apiKey?: string;
+};
+
+type ActiveConfig = {
+  model: string;
+  api_endpoint: string | null;
+  api_key: string;
 };
 
 export async function POST(request: Request) {
@@ -20,28 +32,87 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "请输入要翻译的内容。" }, { status: 400 });
     }
 
-    const apiKey = body.apiKey?.trim() || process.env.OPENAI_API_KEY;
+    const session = await getServerSession(authOptions);
+    const userKey = session?.user?.id || session?.user?.email;
+
+    let storedConfig: {
+      model?: string;
+      apiEndpoint?: string | null;
+      apiKey?: string;
+    } | null = null;
+
+    if (userKey) {
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data } = await supabase
+          .from<ActiveConfig>("model_configs")
+          .select("model, api_endpoint, api_key")
+          .eq("user_id", userKey)
+          .eq("is_active", true)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (data) {
+          storedConfig = {
+            model: data.model,
+            apiEndpoint: data.api_endpoint,
+            apiKey: data.api_key,
+          };
+        }
+      } else {
+        const row = getSqlite()
+          .prepare(
+            `SELECT model, api_endpoint as apiEndpoint, api_key as apiKey
+             FROM model_configs
+             WHERE user_id = ? AND is_active = 1
+             ORDER BY datetime(updated_at) DESC
+             LIMIT 1`,
+          )
+          .get(userKey) as
+          | { model: string; apiEndpoint: string | null; apiKey: string }
+          | undefined;
+        if (row) {
+          storedConfig = {
+            model: row.model,
+            apiEndpoint: row.apiEndpoint,
+            apiKey: row.apiKey,
+          };
+        }
+      }
+    }
+
+    let apiKey =
+      body.apiKey?.trim() ||
+      storedConfig?.apiKey ||
+      process.env.OPENAI_API_KEY;
+    if (apiKey?.startsWith("Bearer ")) {
+      apiKey = apiKey.replace(/^Bearer\s+/i, "").trim();
+    }
     if (!apiKey) {
       return NextResponse.json(
-        { error: "缺少 OPENAI_API_KEY 配置。" },
+        { error: "没有可用的 API Key。" },
         { status: 500 },
       );
     }
 
-    const requestedModel = body.model?.trim();
+    const requestedModel = body.model?.trim() || storedConfig?.model;
     const model =
       requestedModel && requestedModel.length <= 80
         ? requestedModel
         : process.env.OPENAI_MODEL ?? "gpt-4o-mini";
 
     const rawEndpoint =
-      body.apiEndpoint?.trim() || "https://api.openai.com/v1/chat/completions";
+      body.apiEndpoint?.trim() ||
+      storedConfig?.apiEndpoint?.trim() ||
+      "https://api.openai.com/v1/chat/completions";
     if (!rawEndpoint.startsWith("http")) {
       return NextResponse.json(
         { error: "API Endpoint 无效。" },
         { status: 400 },
       );
     }
+
     const isMiniMax = rawEndpoint.includes("minimaxi.com");
     const apiEndpoint = isMiniMax
       ? rawEndpoint.includes("chatcompletion_v2")
@@ -79,7 +150,11 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const errorText = await response.text();
       return NextResponse.json(
-        { error: "翻译服务暂时不可用。", details: errorText },
+        {
+          error: "翻译请求失败。",
+          details: errorText || `上游返回状态 ${response.status}`,
+          status: response.status,
+        },
         { status: 500 },
       );
     }
@@ -89,7 +164,21 @@ export async function POST(request: Request) {
       reply?: string;
       output_text?: string;
       result?: { output?: string };
+      base_resp?: { status_code?: number; status_msg?: string };
     };
+    if (data.base_resp?.status_code && data.base_resp.status_code !== 0) {
+      return NextResponse.json(
+        {
+          error: "翻译服务返回错误。",
+          details:
+            data.base_resp.status_msg?.includes("login fail")
+              ? "API Key 无效或未配置，请检查个人页中的模型配置。"
+              : data.base_resp.status_msg ?? "未知错误",
+          status: data.base_resp.status_code,
+        },
+        { status: 500 },
+      );
+    }
     const translation =
       data.choices?.[0]?.message?.content?.trim() ||
       data.reply?.trim() ||
@@ -98,7 +187,7 @@ export async function POST(request: Request) {
 
     if (!translation) {
       return NextResponse.json(
-        { error: "未能解析翻译结果。" },
+        { error: "翻译结果为空。" },
         { status: 500 },
       );
     }
@@ -106,7 +195,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ translation });
   } catch (error) {
     return NextResponse.json(
-      { error: "翻译请求失败。", details: String(error) },
+      { error: "翻译服务异常。", details: String(error) },
       { status: 500 },
     );
   }

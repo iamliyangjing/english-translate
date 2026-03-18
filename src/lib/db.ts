@@ -36,6 +36,21 @@ if (!useSupabase) {
 
     CREATE INDEX IF NOT EXISTS idx_cards_user ON cards(user_id);
     CREATE INDEX IF NOT EXISTS idx_cards_next_review ON cards(next_review_at);
+
+    CREATE TABLE IF NOT EXISTS model_configs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      model TEXT NOT NULL,
+      api_endpoint TEXT,
+      api_key TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_model_configs_user ON model_configs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_model_configs_user_active ON model_configs(user_id, is_active);
   `);
 
   const columns = sqlite.prepare("PRAGMA table_info(cards)").all() as {

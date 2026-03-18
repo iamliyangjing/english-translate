@@ -11,7 +11,7 @@ type LoginPromptProps = {
 export default function LoginPrompt({
   title = "需要登录才能继续",
   description = "登录后可保存卡片、导出 Anki、开始复习。",
-  actionLabel = "使用 GitHub / Google 登录",
+  actionLabel = "使用 GitHub 登录",
 }: LoginPromptProps) {
   return (
     <section className="rounded-3xl border border-black/10 bg-white/90 p-8 text-center shadow-sm">
