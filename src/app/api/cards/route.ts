@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
 import { randomUUID } from "node:crypto";
 
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
       LIMIT 200
     `;
 
-    const cards = db.prepare(sql).all(...values);
+    const cards = getSqlite().prepare(sql).all(...values);
 
     return NextResponse.json({ cards });
   } catch (error) {
@@ -184,7 +184,7 @@ export async function POST(request: Request) {
       });
     }
 
-    db.prepare(
+    getSqlite().prepare(
       `INSERT INTO cards (
         id, user_id, user_email, source_text, target_text, source_lang, target_lang,
         pronunciation, tags, created_at, updated_at, next_review_at, last_grade
@@ -234,7 +234,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "缺少卡片 ID。" }, { status: 400 });
     }
 
-    const existing = db
+    const existing = getSqlite()
       .prepare("SELECT id FROM cards WHERE id = ? AND user_id = ? LIMIT 1")
       .get(id, userKey) as { id: string } | undefined;
 
@@ -287,7 +287,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    db.prepare(
+    getSqlite().prepare(
       `UPDATE cards
        SET source_text = ?, target_text = ?, pronunciation = ?, tags = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`,
@@ -341,7 +341,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    db.prepare("DELETE FROM cards WHERE id = ? AND user_id = ?").run(
+    getSqlite().prepare("DELETE FROM cards WHERE id = ? AND user_id = ?").run(
       id,
       userKey,
     );

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -46,7 +46,7 @@ export async function GET() {
     return NextResponse.json({ card });
   }
 
-  const card = db
+  const card = getSqlite()
     .prepare(
       `SELECT id, source_text as sourceText, target_text as targetText,
               source_lang as sourceLang, target_lang as targetLang

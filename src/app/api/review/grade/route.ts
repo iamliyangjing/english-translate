@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const existing = db
+  const existing = getSqlite()
     .prepare(
       "SELECT id FROM cards WHERE id = ? AND user_id = ? LIMIT 1",
     )
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
   const nextReviewAt = addDays(new Date(), intervalDays[grade]);
 
-  db.prepare(
+  getSqlite().prepare(
     `UPDATE cards
      SET next_review_at = ?, last_grade = ?, updated_at = ?
      WHERE id = ? AND user_id = ?`,

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -53,7 +53,7 @@ export async function GET() {
     });
   }
 
-  const cards = db
+  const cards = getSqlite()
     .prepare(
       `SELECT source_text as sourceText, target_text as targetText, pronunciation
        FROM cards WHERE user_id = ? ORDER BY datetime(created_at) DESC`,
