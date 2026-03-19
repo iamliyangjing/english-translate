@@ -12,39 +12,40 @@
   </a>
 </p>
 
-[中文文档](README.zh-CN.md)
+[English Version](README.md)
 
-> Translate, review, and remember.
+> Translate, review, and remember.  
+> 一个把翻译变成可复习卡片的英语学习工具。
 
 ![LinguaCards Preview](public/landing-shot.svg)
 
-## Why LinguaCards
-- Turn translations into reviewable cards instantly
-- Lightweight review loop (front → back → grade)
-- One-click CSV export for Anki
-- Custom model + API endpoint support
+## 为什么是 LinguaCards
+- 一次翻译，自动沉淀为卡片
+- 内置轻量复习流程（正面/翻面/评分）
+- 一键导出 CSV，直接导入 Anki
+- 支持自定义模型配置与 API Endpoint
 
-## Features
-- English ↔ Chinese translation + browser TTS
-- Card library: search, edit, delete, bulk export
-- Built-in review: minimal flow + simple intervals
-- Profile: learning stats + model config management
-- OAuth login: GitHub / Google
-- Storage: Supabase (recommended) or local SQLite
+## 功能一览
+- 中英互译 + 浏览器 TTS 朗读
+- 卡片库：检索、编辑、删除、批量导出
+- 站内复习：最小流程 + 简单间隔
+- 个人页：学习统计 + 模型配置管理
+- OAuth 登录：GitHub / Google
+- 存储支持：Supabase（推荐）或本地 SQLite
 
-## Tech Stack
+## 技术栈
 - Next.js (App Router)
 - NextAuth
 - Supabase / SQLite
 - Tailwind CSS
 
-## Quick Start
-1) Install dependencies
+## 快速开始
+1) 安装依赖
 ```bash
 npm install
 ```
 
-2) Configure environment variables
+2) 配置环境变量（本地开发）
 ```env
 # Translation
 OPENAI_API_KEY=your_key
@@ -63,27 +64,27 @@ SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-3) Start dev server
+3) 启动开发服务器
 ```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000)
+打开 [http://localhost:3000](http://localhost:3000)
 
-## Supabase Setup (Recommended)
-1) Run `supabase/schema.sql` in Supabase SQL Editor
-2) Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-3) Server will prefer Supabase; fallback to SQLite when not set
+## Supabase 配置（推荐）
+1) 在 Supabase SQL Editor 运行 `supabase/schema.sql`
+2) 配置 `SUPABASE_URL` 与 `SUPABASE_SERVICE_ROLE_KEY`
+3) 服务端将优先使用 Supabase；未配置时自动使用本地 SQLite
 
-## Model Configuration
-Add and switch model configs in Profile:
+## 模型配置
+在个人页可新增并切换模型配置：
 - Model
-- API Endpoint (optional)
+- API Endpoint（可选）
 - API Key
 
-If none configured, it falls back to `OPENAI_API_KEY` / `OPENAI_MODEL`.
+未配置时将回退到 `OPENAI_API_KEY` / `OPENAI_MODEL`。
 
-## Anki Export
-CSV export field order:
+## Anki 导出
+卡片库支持导出 CSV，字段顺序：
 ```
 sourceText, targetText, pronunciation
 ```
