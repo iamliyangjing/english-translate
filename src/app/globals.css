@@ -50,6 +50,18 @@ body {
   }
 }
 
+@keyframes pulseSoft {
+  0% {
+    box-shadow: 0 0 0 0 rgba(29, 107, 90, 0.25);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(29, 107, 90, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(29, 107, 90, 0);
+  }
+}
+
 .animate-float-slow {
   animation: floatSlow 6s ease-in-out infinite;
 }
@@ -68,4 +80,39 @@ body {
   height: 100%;
   background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   animation: shimmerMove 3.6s ease-in-out infinite;
+}
+
+.page-gradient {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.page-gradient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 15% 20%, rgba(29, 107, 90, 0.12), transparent 55%),
+    radial-gradient(circle at 80% 10%, rgba(240, 162, 2, 0.18), transparent 45%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+  z-index: -1;
+}
+
+.page-gradient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(28, 27, 26, 0.05) 0.6px, transparent 0.6px);
+  background-size: 18px 18px;
+  opacity: 0.45;
+  z-index: -1;
+}
+
+.button-pulse {
+  position: relative;
+  animation: pulseSoft 2.8s ease-out infinite;
+}
+
+.button-pulse:hover {
+  animation-play-state: paused;
 }

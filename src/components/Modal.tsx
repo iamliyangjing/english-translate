@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ReactNode } from "react";
 
@@ -29,7 +29,7 @@ export default function Modal({
             onClick={onClose}
             className="rounded-full border border-black/10 px-4 py-2 text-sm"
           >
-            以后再说
+            取消
           </button>
           {actions}
         </div>

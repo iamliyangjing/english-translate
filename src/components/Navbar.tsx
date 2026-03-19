@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
@@ -59,26 +59,34 @@ export default function Navbar() {
                       .toUpperCase()}
                   </span>
                 )}
-                <span>
-                  {session.user.name ?? session.user.email ?? "已登录"}
-                </span>
+                <span>{session.user.name ?? session.user.email ?? "未命名用户"}</span>
               </Link>
               <button
                 onClick={() => signOut()}
                 className="rounded-full border border-black/10 px-4 py-2 text-sm transition hover:border-black/20 hover:bg-black/5"
               >
-                退出
+                退出登录
               </button>
             </>
           ) : (
-            <button
-              onClick={() =>
-                signIn(undefined, { callbackUrl: window.location.href })
-              }
-              className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80"
-            >
-              登录
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  signIn("github", { callbackUrl: window.location.href })
+                }
+                className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80"
+              >
+                GitHub 登录
+              </button>
+              <button
+                onClick={() =>
+                  signIn("google", { callbackUrl: window.location.href })
+                }
+                className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-black/5"
+              >
+                Google 登录
+              </button>
+            </div>
           )}
         </div>
       </div>
