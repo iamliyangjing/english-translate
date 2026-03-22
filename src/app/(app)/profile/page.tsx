@@ -5,7 +5,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import LoginPrompt from "@/components/LoginPrompt";
 
-type Stats = { total: number; due: number };
+type Stats = {
+  total: number;
+  due: number;
+  newCards: number;
+  reviewedToday: number;
+  reviewedThisWeek: number;
+  mastered: number;
+  learningCards: number;
+  completionRate: number;
+};
 
 type ModelConfig = {
   id: string;
@@ -17,12 +26,23 @@ type ModelConfig = {
   updatedAt: string;
 };
 
+const emptyStats: Stats = {
+  total: 0,
+  due: 0,
+  newCards: 0,
+  reviewedToday: 0,
+  reviewedThisWeek: 0,
+  mastered: 0,
+  learningCards: 0,
+  completionRate: 0,
+};
+
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const loading = status === "loading";
   const user = session?.user;
 
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<Stats>(emptyStats);
   const [statsError, setStatsError] = useState<string | null>(null);
 
   const [configs, setConfigs] = useState<ModelConfig[]>([]);
@@ -41,40 +61,65 @@ export default function ProfilePage() {
     if (editingId) {
       return Boolean(name.trim() && model.trim());
     }
+
     return Boolean(name.trim() && model.trim() && apiKey.trim());
-  }, [name, model, apiKey, editingId]);
+  }, [apiKey, editingId, model, name]);
 
-  useEffect(() => {
-    if (!user) return;
+  const loadStats = useCallback(async () => {
+    if (!user) {
+      return;
+    }
 
-    const loadStats = async () => {
-      try {
-        const res = await fetch("/api/profile/stats");
-        const data = await res.json();
-        if (!res.ok) {
-          setStatsError(data.error ?? "获取学习统计失败。");
-          return;
-        }
-        setStats({ total: data.total ?? 0, due: data.due ?? 0 });
-      } catch {
-        setStatsError("获取学习统计失败。");
+    setStatsError(null);
+
+    try {
+      const response = await fetch("/api/profile/stats");
+      const data = (await response.json()) as Partial<Stats> & { error?: string };
+
+      if (!response.ok) {
+        setStatsError(data.error ?? "获取学习统计失败。");
+        return;
       }
-    };
 
-    void loadStats();
+      setStats({
+        total: Number(data.total ?? 0),
+        due: Number(data.due ?? 0),
+        newCards: Number(data.newCards ?? 0),
+        reviewedToday: Number(data.reviewedToday ?? 0),
+        reviewedThisWeek: Number(data.reviewedThisWeek ?? 0),
+        mastered: Number(data.mastered ?? 0),
+        learningCards: Number(data.learningCards ?? 0),
+        completionRate: Number(data.completionRate ?? 0),
+      });
+    } catch {
+      setStatsError("获取学习统计失败。");
+    }
   }, [user]);
 
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
   const loadConfigs = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
+
     setConfigsLoading(true);
     setConfigsError(null);
+
     try {
-      const res = await fetch("/api/profile/model-configs");
-      const data = await res.json();
-      if (!res.ok) {
+      const response = await fetch("/api/profile/model-configs");
+      const data = (await response.json()) as {
+        configs?: ModelConfig[];
+        error?: string;
+      };
+
+      if (!response.ok) {
         setConfigsError(data.error ?? "获取模型配置失败。");
         return;
       }
+
       setConfigs(data.configs ?? []);
     } catch {
       setConfigsError("获取模型配置失败。");
@@ -97,8 +142,12 @@ export default function ProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!canSave) return;
+    if (!canSave) {
+      return;
+    }
+
     setConfigMessage(null);
+
     try {
       const payload: {
         name: string;
@@ -111,14 +160,16 @@ export default function ProfilePage() {
         model,
         apiEndpoint,
       };
+
       if (apiKey.trim()) {
         payload.apiKey = apiKey;
       }
+
       if (!editingId) {
         payload.setActive = setActive;
       }
 
-      const res = await fetch(
+      const response = await fetch(
         editingId
           ? `/api/profile/model-configs/${editingId}`
           : "/api/profile/model-configs",
@@ -128,16 +179,18 @@ export default function ProfilePage() {
           body: JSON.stringify(payload),
         },
       );
-      const data = await res.json();
-      if (!res.ok) {
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
         setConfigMessage(
           data.error ??
             (editingId ? "更新模型配置失败。" : "保存模型配置失败。"),
         );
         return;
       }
+
       resetForm();
-      setConfigMessage(editingId ? "已更新模型配置。" : "已保存模型配置。");
+      setConfigMessage(editingId ? "模型配置已更新。" : "模型配置已保存。");
       await loadConfigs();
     } catch {
       setConfigMessage(editingId ? "更新模型配置失败。" : "保存模型配置失败。");
@@ -146,16 +199,19 @@ export default function ProfilePage() {
 
   const handleActivate = async (id: string) => {
     setConfigMessage(null);
+
     try {
-      const res = await fetch(`/api/profile/model-configs/${id}/activate`, {
+      const response = await fetch(`/api/profile/model-configs/${id}/activate`, {
         method: "POST",
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
         setConfigMessage(data.error ?? "切换配置失败。");
         return;
       }
-      setConfigMessage("已切换到该配置。");
+
+      setConfigMessage("当前模型配置已切换。");
       await loadConfigs();
     } catch {
       setConfigMessage("切换配置失败。");
@@ -164,17 +220,20 @@ export default function ProfilePage() {
 
   const handleDelete = async (id: string) => {
     setConfigMessage(null);
+
     try {
-      const res = await fetch(`/api/profile/model-configs/${id}`, {
+      const response = await fetch(`/api/profile/model-configs/${id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
-      const data = await res.json();
-      if (!res.ok) {
+      const data = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
         setConfigMessage(data.error ?? "删除配置失败。");
         return;
       }
-      setConfigMessage("已删除配置。");
+
+      setConfigMessage("模型配置已删除。");
       await loadConfigs();
     } catch {
       setConfigMessage("删除配置失败。");
@@ -194,7 +253,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-10">
-        <p className="text-sm text-neutral-500">加载中...</p>
+        <p className="text-sm text-neutral-500">正在加载个人信息...</p>
       </main>
     );
   }
@@ -203,8 +262,8 @@ export default function ProfilePage() {
     return (
       <main className="mx-auto w-full max-w-5xl px-6 py-10">
         <LoginPrompt
-          title="登录后查看个人信息"
-          description="请先登录再进入个人页。登录后可查看个人信息和学习统计。"
+          title="登录后查看个人中心"
+          description="登录后可查看学习统计、管理模型配置，并同步你的复习节奏。"
           actionLabel="使用 GitHub 登录"
         />
       </main>
@@ -212,6 +271,14 @@ export default function ProfilePage() {
   }
 
   const provider = user.id?.includes("github") ? "GitHub" : "OAuth";
+  const statCards = [
+    { label: "卡片总数", value: stats.total, note: "累计加入学习空间" },
+    { label: "今日待复习", value: stats.due, note: "现在应该处理的卡片" },
+    { label: "新卡片", value: stats.newCards, note: "仍在建立第一层记忆" },
+    { label: "今日已复习", value: stats.reviewedToday, note: "今天触达过的卡片" },
+    { label: "本周活跃", value: stats.reviewedThisWeek, note: "最近 7 天触达过的卡片" },
+    { label: "已掌握", value: stats.mastered, note: "复习间隔已拉长到 21 天以上" },
+  ];
 
   return (
     <main className="mx-auto w-full max-w-5xl px-6 py-10">
@@ -232,6 +299,7 @@ export default function ProfilePage() {
                 {(user.name ?? user.email ?? "U").slice(0, 1).toUpperCase()}
               </div>
             )}
+
             <div>
               <h1 className="font-serif text-2xl text-neutral-900">
                 {user.name ?? "未命名用户"}
@@ -239,6 +307,7 @@ export default function ProfilePage() {
               <p className="text-sm text-neutral-500">{user.email}</p>
             </div>
           </div>
+
           <div className="rounded-2xl border border-black/10 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
             登录方式：{provider}
           </div>
@@ -251,6 +320,7 @@ export default function ProfilePage() {
             </p>
             <p className="mt-2 text-sm text-neutral-700">{user.id}</p>
           </div>
+
           <div className="rounded-2xl border border-black/10 bg-white p-4">
             <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
               邮箱
@@ -262,29 +332,39 @@ export default function ProfilePage() {
         </div>
 
         <div className="mt-6 rounded-2xl border border-black/10 bg-neutral-50 p-5">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-            学习统计
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+                学习统计
+              </p>
+              <p className="mt-2 text-sm text-neutral-500">
+                这些指标会随着复习评分实时更新，帮助你判断记忆是否在稳定扩张。
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm text-neutral-700">
+              当前掌握率：{stats.completionRate}%
+            </div>
+          </div>
+
           {statsError ? (
             <p className="mt-3 text-sm text-neutral-500">{statsError}</p>
           ) : (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                  卡片总数
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-neutral-900">
-                  {stats ? stats.total : "--"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-black/10 bg-white p-4">
-                <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-                  待复习数
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-neutral-900">
-                  {stats ? stats.due : "--"}
-                </p>
-              </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {statCards.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl border border-black/10 bg-white p-4"
+                >
+                  <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-neutral-900">
+                    {item.value}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-500">{item.note}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -294,7 +374,7 @@ export default function ProfilePage() {
             模型配置
           </p>
           <p className="mt-2 text-sm text-neutral-500">
-            API Key 会安全存储在服务端，不会在页面回显。
+            API Key 会保存在服务端。编辑已有配置时，留空 API Key 表示沿用原值。
           </p>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">
@@ -307,6 +387,7 @@ export default function ProfilePage() {
                 onChange={(event) => setName(event.target.value)}
               />
             </div>
+
             <div>
               <label className="text-sm text-neutral-500">模型</label>
               <input
@@ -316,6 +397,7 @@ export default function ProfilePage() {
                 onChange={(event) => setModel(event.target.value)}
               />
             </div>
+
             <div>
               <label className="text-sm text-neutral-500">
                 API Endpoint（可选）
@@ -327,6 +409,7 @@ export default function ProfilePage() {
                 onChange={(event) => setApiEndpoint(event.target.value)}
               />
             </div>
+
             <div>
               <label className="text-sm text-neutral-500">API Key</label>
               <input
@@ -350,6 +433,7 @@ export default function ProfilePage() {
                 保存后设为当前配置
               </label>
             ) : null}
+
             <button
               onClick={() => void handleSave()}
               disabled={!canSave}
@@ -357,6 +441,7 @@ export default function ProfilePage() {
             >
               {editingId ? "更新配置" : "保存配置"}
             </button>
+
             {editingId ? (
               <button
                 onClick={resetForm}
@@ -375,11 +460,11 @@ export default function ProfilePage() {
 
           <div className="mt-5 rounded-2xl border border-black/10 bg-neutral-50 p-4">
             {configsLoading ? (
-              <p className="text-sm text-neutral-500">正在加载配置...</p>
+              <p className="text-sm text-neutral-500">正在加载模型配置...</p>
             ) : configsError ? (
               <p className="text-sm text-neutral-500">{configsError}</p>
             ) : configs.length === 0 ? (
-              <p className="text-sm text-neutral-500">暂无模型配置。</p>
+              <p className="text-sm text-neutral-500">还没有可用的模型配置。</p>
             ) : (
               <div className="grid gap-3">
                 {configs.map((config) => (
@@ -392,7 +477,7 @@ export default function ProfilePage() {
                         {config.name}
                         {config.isActive ? (
                           <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                            当前
+                            当前使用
                           </span>
                         ) : null}
                       </p>
@@ -400,9 +485,10 @@ export default function ProfilePage() {
                         模型：{config.model}
                       </p>
                       <p className="mt-1 text-xs text-neutral-500">
-                        Endpoint：{config.apiEndpoint || "默认"}
+                        Endpoint：{config.apiEndpoint || "默认地址"}
                       </p>
                     </div>
+
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => handleEdit(config)}
@@ -410,6 +496,7 @@ export default function ProfilePage() {
                       >
                         编辑
                       </button>
+
                       {!config.isActive ? (
                         <button
                           onClick={() => void handleActivate(config.id)}
@@ -418,6 +505,7 @@ export default function ProfilePage() {
                           设为当前
                         </button>
                       ) : null}
+
                       <button
                         onClick={() => void handleDelete(config.id)}
                         className="rounded-full border border-black/10 px-3 py-1.5 text-xs text-neutral-500 transition hover:bg-black/5"

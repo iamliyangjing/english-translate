@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { Database } from "@/lib/database.types";
 import { authOptions } from "@/lib/auth";
 import { getSqlite } from "@/lib/db";
+import { isMissingColumnError } from "@/lib/supabase-errors";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -107,14 +108,17 @@ export async function GET(request: Request) {
     `;
 
     const cards = getSqlite()
-      .prepare<string[], {
-        id: string;
-        sourceText: string;
-        targetText: string;
-        pronunciation: string | null;
-        tags: string | null;
-        createdAt: string;
-      }>(sql)
+      .prepare<
+        string[],
+        {
+          id: string;
+          sourceText: string;
+          targetText: string;
+          pronunciation: string | null;
+          tags: string | null;
+          createdAt: string;
+        }
+      >(sql)
       .all(...values);
 
     return NextResponse.json({ cards });
@@ -161,28 +165,70 @@ export async function POST(request: Request) {
       updated_at: now,
       next_review_at: now,
       last_grade: null,
+      review_count: 0,
+      lapse_count: 0,
+      ease_factor: 2.5,
+      interval_days: 0,
+      last_reviewed_at: null,
     };
 
     const supabase = getSupabase();
     if (supabase) {
-      const { data, error } = await supabase
+      const enhancedInsert = await supabase
         .from("cards")
         .insert(payload)
         .select("id, source_text, target_text")
         .single();
 
-      if (error) {
+      if (enhancedInsert.error && isMissingColumnError(enhancedInsert.error.message)) {
+        const legacyInsert = await supabase
+          .from("cards")
+          .insert({
+            id,
+            user_id: userKey,
+            user_email: session?.user?.email ?? null,
+            source_text: sourceText,
+            target_text: targetText,
+            source_lang: body.sourceLang?.trim() || "English",
+            target_lang: body.targetLang?.trim() || "Chinese",
+            pronunciation: body.pronunciation?.trim() || null,
+            tags: body.tags?.trim() || null,
+            created_at: now,
+            updated_at: now,
+            next_review_at: now,
+            last_grade: null,
+          })
+          .select("id, source_text, target_text")
+          .single();
+
+        if (legacyInsert.error) {
+          return NextResponse.json(
+            { error: "保存卡片失败。", details: legacyInsert.error.message },
+            { status: 500 },
+          );
+        }
+
+        return NextResponse.json({
+          card: {
+            id: legacyInsert.data.id,
+            sourceText: legacyInsert.data.source_text,
+            targetText: legacyInsert.data.target_text,
+          },
+        });
+      }
+
+      if (enhancedInsert.error) {
         return NextResponse.json(
-          { error: "保存卡片失败。", details: error.message },
+          { error: "保存卡片失败。", details: enhancedInsert.error.message },
           { status: 500 },
         );
       }
 
       return NextResponse.json({
         card: {
-          id: data.id,
-          sourceText: data.source_text,
-          targetText: data.target_text,
+          id: enhancedInsert.data.id,
+          sourceText: enhancedInsert.data.source_text,
+          targetText: enhancedInsert.data.target_text,
         },
       });
     }
@@ -203,12 +249,18 @@ export async function POST(request: Request) {
           string,
           string,
           number | null,
+          number,
+          number,
+          number,
+          number,
+          string | null,
         ]
       >(
         `INSERT INTO cards (
           id, user_id, user_email, source_text, target_text, source_lang, target_lang,
-          pronunciation, tags, created_at, updated_at, next_review_at, last_grade
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          pronunciation, tags, created_at, updated_at, next_review_at, last_grade,
+          review_count, lapse_count, ease_factor, interval_days, last_reviewed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -223,6 +275,11 @@ export async function POST(request: Request) {
         now,
         now,
         now,
+        null,
+        0,
+        0,
+        2.5,
+        0,
         null,
       );
 

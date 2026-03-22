@@ -41,7 +41,12 @@ const initSqlite = () => {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       next_review_at TEXT NOT NULL,
-      last_grade INTEGER
+      last_grade INTEGER,
+      review_count INTEGER NOT NULL DEFAULT 0,
+      lapse_count INTEGER NOT NULL DEFAULT 0,
+      ease_factor REAL NOT NULL DEFAULT 2.5,
+      interval_days REAL NOT NULL DEFAULT 0,
+      last_reviewed_at TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_cards_user ON cards(user_id);
@@ -73,6 +78,18 @@ const initSqlite = () => {
     sqlite.exec("UPDATE cards SET user_id = user_email WHERE user_id IS NULL");
     sqlite.exec("CREATE INDEX IF NOT EXISTS idx_cards_user ON cards(user_id)");
   }
+
+  const ensureCardsColumn = (name: string, definition: string) => {
+    if (!columns.some((col) => col.name === name)) {
+      sqlite.exec(`ALTER TABLE cards ADD COLUMN ${name} ${definition}`);
+    }
+  };
+
+  ensureCardsColumn("review_count", "INTEGER NOT NULL DEFAULT 0");
+  ensureCardsColumn("lapse_count", "INTEGER NOT NULL DEFAULT 0");
+  ensureCardsColumn("ease_factor", "REAL NOT NULL DEFAULT 2.5");
+  ensureCardsColumn("interval_days", "REAL NOT NULL DEFAULT 0");
+  ensureCardsColumn("last_reviewed_at", "TEXT");
 
   db = sqlite;
   return sqlite;

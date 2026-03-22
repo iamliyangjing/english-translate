@@ -24,6 +24,11 @@ export type Database = {
           updated_at: string;
           next_review_at: string;
           last_grade: number | null;
+          review_count: number;
+          lapse_count: number;
+          ease_factor: number;
+          interval_days: number;
+          last_reviewed_at: string | null;
         };
         Insert: {
           id: string;
@@ -39,6 +44,11 @@ export type Database = {
           updated_at?: string;
           next_review_at?: string;
           last_grade?: number | null;
+          review_count?: number;
+          lapse_count?: number;
+          ease_factor?: number;
+          interval_days?: number;
+          last_reviewed_at?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["cards"]["Insert"]>;
         Relationships: [];
