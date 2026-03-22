@@ -3,16 +3,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useI18n } from "@/components/LocaleProvider";
 
 const navLinks = [
-  { href: "/app", label: "工作台" },
-  { href: "/cards", label: "卡片库" },
-  { href: "/review", label: "复习" },
-  { href: "/profile", label: "个人页" },
+  { href: "/app", label: { zh: "工作台", en: "Workspace" } },
+  { href: "/cards", label: { zh: "卡片库", en: "Cards" } },
+  { href: "/review", label: { zh: "复习", en: "Review" } },
+  { href: "/profile", label: { zh: "个人页", en: "Profile" } },
 ];
 
 export default function AppNavbar() {
   const { data: session, status } = useSession();
+  const { t } = useI18n();
   const loading = status === "loading";
 
   return (
@@ -32,14 +35,17 @@ export default function AppNavbar() {
                 href={link.href}
                 className="rounded-full px-3 py-1 transition hover:bg-black/5 hover:text-black"
               >
-                {link.label}
+                {t(link.label)}
               </Link>
             ))}
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
+          <LanguageSwitcher />
           {loading ? (
-            <span className="text-neutral-500">加载中...</span>
+            <span className="text-neutral-500">
+              {t({ zh: "加载中...", en: "Loading..." })}
+            </span>
           ) : session?.user ? (
             <>
               <Link
@@ -62,13 +68,17 @@ export default function AppNavbar() {
                       .toUpperCase()}
                   </span>
                 )}
-                <span>{session.user.name ?? session.user.email ?? "未命名用户"}</span>
+                <span>
+                  {session.user.name ??
+                    session.user.email ??
+                    t({ zh: "未命名用户", en: "Unnamed user" })}
+                </span>
               </Link>
               <button
                 onClick={() => signOut()}
                 className="rounded-full border border-black/10 px-4 py-2 text-sm transition hover:border-black/20 hover:bg-black/5"
               >
-                退出登录
+                {t({ zh: "退出登录", en: "Sign out" })}
               </button>
             </>
           ) : (
@@ -79,7 +89,7 @@ export default function AppNavbar() {
                 }
                 className="rounded-full bg-black px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80"
               >
-                GitHub 登录
+                {t({ zh: "GitHub 登录", en: "GitHub sign in" })}
               </button>
               <button
                 onClick={() =>
@@ -87,7 +97,7 @@ export default function AppNavbar() {
                 }
                 className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-black/5"
               >
-                Google 登录
+                {t({ zh: "Google 登录", en: "Google sign in" })}
               </button>
             </div>
           )}
@@ -100,7 +110,7 @@ export default function AppNavbar() {
             href={link.href}
             className="rounded-full px-2 py-1 transition hover:bg-black/5 hover:text-black"
           >
-            {link.label}
+            {t(link.label)}
           </Link>
         ))}
       </nav>

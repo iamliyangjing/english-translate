@@ -3,14 +3,10 @@ import LandingNavbar from "@/components/LandingNavbar";
 
 export const metadata: Metadata = {
   title: "LinguaCards",
-  description: "把翻译变成可复习的卡片，让英语学习更有节奏感。",
+  description: "Turn translation into reviewable cards and build a calmer study rhythm.",
 };
 
-export default function MarketingLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function MarketingLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
       <LandingNavbar />

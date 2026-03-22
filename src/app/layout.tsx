@@ -1,36 +1,20 @@
 import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import "./globals.css";
 import Providers from "@/components/Providers";
+import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const fraunces = Fraunces({
-  variable: "--font-serif",
-  subsets: ["latin"],
-});
+const spaceGrotesk = Space_Grotesk({ variable: "--font-sans", subsets: ["latin"] });
+const fraunces = Fraunces({ variable: "--font-serif", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: {
-    default: "LinguaCards",
-    template: "%s | LinguaCards",
-  },
-  description: "翻译、复习、记忆，一站式英语学习体验。",
+  title: { default: "LinguaCards", template: "%s | LinguaCards" },
+  description: "Translate, review, and organize language cards in one focused workspace.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN">
-      <body
-        className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
-      >
+    <html lang="zh-CN" suppressHydrationWarning>
+      <body className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

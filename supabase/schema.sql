@@ -8,6 +8,12 @@ create table if not exists public.cards (
   target_lang text not null,
   pronunciation text,
   tags text,
+  deck_name text not null default 'Inbox',
+  notes text,
+  example_sentence text,
+  source_context text,
+  is_favorite boolean not null default false,
+  archived_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   next_review_at timestamptz not null default now(),
@@ -57,3 +63,9 @@ alter table public.cards add column if not exists lapse_count int not null defau
 alter table public.cards add column if not exists ease_factor numeric not null default 2.5;
 alter table public.cards add column if not exists interval_days numeric not null default 0;
 alter table public.cards add column if not exists last_reviewed_at timestamptz;
+alter table public.cards add column if not exists deck_name text not null default 'Inbox';
+alter table public.cards add column if not exists notes text;
+alter table public.cards add column if not exists example_sentence text;
+alter table public.cards add column if not exists source_context text;
+alter table public.cards add column if not exists is_favorite boolean not null default false;
+alter table public.cards add column if not exists archived_at timestamptz;

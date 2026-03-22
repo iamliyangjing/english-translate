@@ -38,6 +38,12 @@ const initSqlite = () => {
       target_lang TEXT NOT NULL,
       pronunciation TEXT,
       tags TEXT,
+      deck_name TEXT NOT NULL DEFAULT 'Inbox',
+      notes TEXT,
+      example_sentence TEXT,
+      source_context TEXT,
+      is_favorite INTEGER NOT NULL DEFAULT 0,
+      archived_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       next_review_at TEXT NOT NULL,
@@ -90,6 +96,12 @@ const initSqlite = () => {
   ensureCardsColumn("ease_factor", "REAL NOT NULL DEFAULT 2.5");
   ensureCardsColumn("interval_days", "REAL NOT NULL DEFAULT 0");
   ensureCardsColumn("last_reviewed_at", "TEXT");
+  ensureCardsColumn("deck_name", "TEXT NOT NULL DEFAULT 'Inbox'");
+  ensureCardsColumn("notes", "TEXT");
+  ensureCardsColumn("example_sentence", "TEXT");
+  ensureCardsColumn("source_context", "TEXT");
+  ensureCardsColumn("is_favorite", "INTEGER NOT NULL DEFAULT 0");
+  ensureCardsColumn("archived_at", "TEXT");
 
   db = sqlite;
   return sqlite;

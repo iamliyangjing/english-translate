@@ -20,6 +20,12 @@ export type Database = {
           target_lang: string;
           pronunciation: string | null;
           tags: string | null;
+          deck_name: string;
+          notes: string | null;
+          example_sentence: string | null;
+          source_context: string | null;
+          is_favorite: boolean;
+          archived_at: string | null;
           created_at: string;
           updated_at: string;
           next_review_at: string;
@@ -40,6 +46,12 @@ export type Database = {
           target_lang: string;
           pronunciation?: string | null;
           tags?: string | null;
+          deck_name?: string;
+          notes?: string | null;
+          example_sentence?: string | null;
+          source_context?: string | null;
+          is_favorite?: boolean;
+          archived_at?: string | null;
           created_at?: string;
           updated_at?: string;
           next_review_at?: string;
