@@ -13,7 +13,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   const userKey = session?.user?.id || session?.user?.email;
   if (!userKey) {
-    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+    return NextResponse.json({ error: "请先登录。" }, { status: 401 });
   }
 
   const supabase = getSupabase();
@@ -31,13 +31,7 @@ export async function GET() {
       );
     }
 
-    const rows = (
-      (data ?? []) as Array<{
-        source_text: string;
-        target_text: string;
-        pronunciation: string | null;
-      }>
-    ).map((card) => [
+    const rows = (data ?? []).map((card) => [
       escapeCsv(card.source_text),
       escapeCsv(card.target_text),
       escapeCsv(card.pronunciation ?? ""),
@@ -54,15 +48,15 @@ export async function GET() {
   }
 
   const cards = getSqlite()
-    .prepare(
+    .prepare<[string], {
+      sourceText: string;
+      targetText: string;
+      pronunciation: string | null;
+    }>(
       `SELECT source_text as sourceText, target_text as targetText, pronunciation
        FROM cards WHERE user_id = ? ORDER BY datetime(created_at) DESC`,
     )
-    .all(userKey) as {
-    sourceText: string;
-    targetText: string;
-    pronunciation: string | null;
-  }[];
+    .all(userKey);
 
   const rows = cards.map((card) => [
     escapeCsv(card.sourceText),

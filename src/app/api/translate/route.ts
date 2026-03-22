@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
@@ -13,12 +13,6 @@ type TranslateBody = {
   model?: string;
   apiEndpoint?: string;
   apiKey?: string;
-};
-
-type ActiveConfig = {
-  model: string;
-  api_endpoint: string | null;
-  api_key: string;
 };
 
 export async function POST(request: Request) {
@@ -44,14 +38,21 @@ export async function POST(request: Request) {
     if (userKey) {
       const supabase = getSupabase();
       if (supabase) {
-        const { data } = await supabase
-          .from<ActiveConfig>("model_configs")
+        const { data, error } = await supabase
+          .from("model_configs")
           .select("model, api_endpoint, api_key")
           .eq("user_id", userKey)
           .eq("is_active", true)
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
+        if (error) {
+          return NextResponse.json(
+            { error: "加载模型配置失败。", details: error.message },
+            { status: 500 },
+          );
+        }
 
         if (data) {
           storedConfig = {
@@ -62,16 +63,14 @@ export async function POST(request: Request) {
         }
       } else {
         const row = getSqlite()
-          .prepare(
+          .prepare<[string], { model: string; apiEndpoint: string | null; apiKey: string }>(
             `SELECT model, api_endpoint as apiEndpoint, api_key as apiKey
              FROM model_configs
              WHERE user_id = ? AND is_active = 1
              ORDER BY datetime(updated_at) DESC
              LIMIT 1`,
           )
-          .get(userKey) as
-          | { model: string; apiEndpoint: string | null; apiKey: string }
-          | undefined;
+          .get(userKey);
         if (row) {
           storedConfig = {
             model: row.model,

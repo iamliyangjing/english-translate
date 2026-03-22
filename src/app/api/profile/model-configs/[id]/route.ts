@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Database } from "@/lib/database.types";
 import { authOptions } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { getSqlite } from "@/lib/db";
@@ -13,22 +14,12 @@ type UpdateModelConfigBody = {
   apiKey?: string;
 };
 
-type ModelConfigRow = {
-  id: string;
-  user_id: string;
-  name: string;
-  model: string;
-  api_endpoint: string | null;
-  api_key: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
+type ModelConfigUpdate = Database["public"]["Tables"]["model_configs"]["Update"];
+type RouteContext = {
+  params: Promise<{ id: string }>;
 };
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
@@ -36,8 +27,7 @@ export async function PATCH(
       return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
-    const id =
-      params?.id || new URL(request.url).pathname.split("/").pop() || "";
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "缺少配置 ID。" }, { status: 400 });
     }
@@ -56,7 +46,7 @@ export async function PATCH(
       );
     }
 
-    const payload: Partial<ModelConfigRow> = {};
+    const payload: ModelConfigUpdate = {};
     if (name) payload.name = name;
     if (model) payload.model = model;
     if (apiEndpoint !== undefined) payload.api_endpoint = apiEndpoint || null;
@@ -72,7 +62,7 @@ export async function PATCH(
     const supabase = getSupabase();
     if (supabase) {
       const { data, error } = await supabase
-        .from<ModelConfigRow>("model_configs")
+        .from("model_configs")
         .update(payload)
         .eq("id", id)
         .eq("user_id", userKey)
@@ -93,14 +83,16 @@ export async function PATCH(
 
     const sqlite = getSqlite();
     const existing = sqlite
-      .prepare("SELECT id FROM model_configs WHERE id = ? AND user_id = ?")
-      .get(id, userKey) as { id: string } | undefined;
+      .prepare<[string, string], { id: string }>(
+        "SELECT id FROM model_configs WHERE id = ? AND user_id = ?",
+      )
+      .get(id, userKey);
     if (!existing) {
       return NextResponse.json({ error: "配置不存在。" }, { status: 404 });
     }
 
     const fields: string[] = [];
-    const values: (string | number | null)[] = [];
+    const values: Array<string | null> = [];
     if (payload.name !== undefined) {
       fields.push("name = ?");
       values.push(payload.name);
@@ -123,7 +115,7 @@ export async function PATCH(
     }
 
     sqlite
-      .prepare(
+      .prepare<Array<string | null>>(
         `UPDATE model_configs SET ${fields.join(", ")} WHERE id = ? AND user_id = ?`,
       )
       .run(...values, id, userKey);
@@ -137,10 +129,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function DELETE(_request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
@@ -148,8 +137,7 @@ export async function DELETE(
       return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
-    const id =
-      params?.id || new URL(request.url).pathname.split("/").pop() || "";
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "缺少配置 ID。" }, { status: 400 });
     }
@@ -157,7 +145,7 @@ export async function DELETE(
     const supabase = getSupabase();
     if (supabase) {
       const { error } = await supabase
-        .from<ModelConfigRow>("model_configs")
+        .from("model_configs")
         .delete()
         .eq("id", id)
         .eq("user_id", userKey);
@@ -172,7 +160,9 @@ export async function DELETE(
     }
 
     getSqlite()
-      .prepare("DELETE FROM model_configs WHERE id = ? AND user_id = ?")
+      .prepare<[string, string]>(
+        "DELETE FROM model_configs WHERE id = ? AND user_id = ?",
+      )
       .run(id, userKey);
 
     return NextResponse.json({ ok: true });

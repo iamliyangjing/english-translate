@@ -14,13 +14,16 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = session?.user?.id || session?.user?.email;
   if (!userKey) {
-    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+    return NextResponse.json({ error: "请先登录。" }, { status: 401 });
   }
 
   const body = (await request.json()) as BulkDeleteBody;
   const ids = body.ids?.filter(Boolean) ?? [];
   if (ids.length === 0) {
-    return NextResponse.json({ error: "请选择要删除的卡片。" }, { status: 400 });
+    return NextResponse.json(
+      { error: "请选择要删除的卡片。" },
+      { status: 400 },
+    );
   }
 
   const supabase = getSupabase();
@@ -41,10 +44,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, count: ids.length });
   }
 
-  const deleteStmt = getSqlite().prepare(
+  const sqlite = getSqlite();
+  const deleteStmt = sqlite.prepare<[string, string]>(
     "DELETE FROM cards WHERE id = ? AND user_id = ?",
   );
-  const transaction = db.transaction((cardIds: string[]) => {
+  const transaction = sqlite.transaction((cardIds: string[]) => {
     for (const id of cardIds) {
       deleteStmt.run(id, userKey);
     }

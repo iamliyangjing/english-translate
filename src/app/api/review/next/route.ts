@@ -10,7 +10,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   const userKey = session?.user?.id || session?.user?.email;
   if (!userKey) {
-    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+    return NextResponse.json({ error: "请先登录。" }, { status: 401 });
   }
 
   const supabase = getSupabase();
@@ -28,7 +28,7 @@ export async function GET() {
 
     if (error) {
       return NextResponse.json(
-        { error: "加载复习卡片失败。", details: error.message },
+        { error: "加载待复习卡片失败。", details: error.message },
         { status: 500 },
       );
     }
@@ -47,7 +47,13 @@ export async function GET() {
   }
 
   const card = getSqlite()
-    .prepare(
+    .prepare<[string], {
+      id: string;
+      sourceText: string;
+      targetText: string;
+      sourceLang: string;
+      targetLang: string;
+    }>(
       `SELECT id, source_text as sourceText, target_text as targetText,
               source_lang as sourceLang, target_lang as targetLang
        FROM cards
@@ -56,15 +62,7 @@ export async function GET() {
        ORDER BY datetime(next_review_at) ASC
        LIMIT 1`,
     )
-    .get(userKey) as
-    | {
-        id: string;
-        sourceText: string;
-        targetText: string;
-        sourceLang: string;
-        targetLang: string;
-      }
-    | undefined;
+    .get(userKey);
 
-  return NextResponse.json({ card });
+  return NextResponse.json({ card: card ?? null });
 }

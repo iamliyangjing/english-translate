@@ -1,7 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useSession } from "next-auth/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LoginPrompt from "@/components/LoginPrompt";
 
 type Card = {
@@ -34,12 +34,17 @@ export default function ReviewPanel() {
   const { status } = useSession();
   const isAuthed = status === "authenticated";
   const authLoading = status === "loading";
+  const repeatQueueRef = useRef(repeatQueue);
+
+  useEffect(() => {
+    repeatQueueRef.current = repeatQueue;
+  }, [repeatQueue]);
 
   const repeatCount = repeatQueue.length;
   const hasRepeat = repeatCount > 0;
   const canGrade = Boolean(card && showAnswer && !loading);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const res = await fetch("/api/profile/stats");
       const data = await res.json();
@@ -49,9 +54,9 @@ export default function ReviewPanel() {
     } catch {
       setTodayDue(0);
     }
-  };
+  }, []);
 
-  const loadNext = async () => {
+  const loadNext = useCallback(async () => {
     setLoading(true);
     setMessage(null);
     setShowAnswer(false);
@@ -71,8 +76,8 @@ export default function ReviewPanel() {
         return;
       }
 
-      if (repeatQueue.length > 0) {
-        const [next, ...rest] = repeatQueue;
+      if (repeatQueueRef.current.length > 0) {
+        const [next, ...rest] = repeatQueueRef.current;
         setRepeatQueue(rest);
         setCard(next);
         setCardSource("repeat");
@@ -88,17 +93,17 @@ export default function ReviewPanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
     if (isAuthed) {
-      loadStats();
-      loadNext();
+      void loadStats();
+      void loadNext();
     } else {
       setLoading(false);
     }
-  }, [isAuthed, authLoading]);
+  }, [authLoading, isAuthed, loadNext, loadStats]);
 
   const handleGrade = async (grade: number) => {
     if (!card) return;
@@ -188,7 +193,7 @@ export default function ReviewPanel() {
             重复队列：{repeatCount}
           </div>
           <button
-            onClick={loadNext}
+            onClick={() => void loadNext()}
             className="rounded-full border border-black/10 px-4 py-2 text-sm text-neutral-700 transition hover:bg-black/5"
           >
             换一张
@@ -308,7 +313,7 @@ export default function ReviewPanel() {
                 {gradeOptions.map((item) => (
                   <button
                     key={item.grade}
-                    onClick={() => handleGrade(item.grade)}
+                    onClick={() => void handleGrade(item.grade)}
                     disabled={!canGrade}
                     className={`rounded-2xl border px-4 py-3 text-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${item.tone}`}
                   >

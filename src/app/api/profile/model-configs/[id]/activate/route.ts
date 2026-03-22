@@ -6,16 +6,11 @@ import { getSqlite } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-type ModelConfigRow = {
-  id: string;
-  user_id: string;
-  is_active: boolean;
+type RouteContext = {
+  params: Promise<{ id: string }>;
 };
 
-export async function POST(
-  _request: Request,
-  { params }: { params: { id: string } },
-) {
+export async function POST(_request: Request, context: RouteContext) {
   try {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
@@ -23,14 +18,7 @@ export async function POST(
       return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
-    const pathSegments = new URL(_request.url).pathname
-      .split("/")
-      .filter(Boolean);
-    const fallbackId =
-      pathSegments[pathSegments.length - 1] === "activate"
-        ? pathSegments[pathSegments.length - 2]
-        : pathSegments[pathSegments.length - 1];
-    const id = params?.id || fallbackId || "";
+    const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "缺少配置 ID。" }, { status: 400 });
     }
@@ -38,24 +26,31 @@ export async function POST(
     const now = new Date().toISOString();
     const supabase = getSupabase();
     if (supabase) {
-      const { data: existing } = await supabase
-        .from<ModelConfigRow>("model_configs")
+      const { data: existing, error: existingError } = await supabase
+        .from("model_configs")
         .select("id")
         .eq("id", id)
         .eq("user_id", userKey)
         .maybeSingle();
+
+      if (existingError) {
+        return NextResponse.json(
+          { error: "加载配置失败。", details: existingError.message },
+          { status: 500 },
+        );
+      }
 
       if (!existing) {
         return NextResponse.json({ error: "配置不存在。" }, { status: 404 });
       }
 
       await supabase
-        .from<ModelConfigRow>("model_configs")
+        .from("model_configs")
         .update({ is_active: false, updated_at: now })
         .eq("user_id", userKey);
 
       const { error } = await supabase
-        .from<ModelConfigRow>("model_configs")
+        .from("model_configs")
         .update({ is_active: true, updated_at: now })
         .eq("id", id)
         .eq("user_id", userKey);
@@ -72,20 +67,20 @@ export async function POST(
     const sqlite = getSqlite();
     const tx = sqlite.transaction(() => {
       const existing = sqlite
-        .prepare(
+        .prepare<[string, string], { id: string }>(
           "SELECT id FROM model_configs WHERE id = ? AND user_id = ? LIMIT 1",
         )
-        .get(id, userKey) as { id: string } | undefined;
+        .get(id, userKey);
       if (!existing) {
         throw new Error("NOT_FOUND");
       }
       sqlite
-        .prepare(
+        .prepare<[string, string]>(
           "UPDATE model_configs SET is_active = 0, updated_at = ? WHERE user_id = ?",
         )
         .run(now, userKey);
       sqlite
-        .prepare(
+        .prepare<[string, string, string]>(
           "UPDATE model_configs SET is_active = 1, updated_at = ? WHERE id = ? AND user_id = ?",
         )
         .run(now, id, userKey);

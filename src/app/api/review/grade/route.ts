@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Database } from "@/lib/database.types";
 import { authOptions } from "@/lib/auth";
 import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
@@ -10,6 +11,8 @@ type GradeBody = {
   cardId?: string;
   grade?: number;
 };
+
+type CardUpdate = Database["public"]["Tables"]["cards"]["Update"];
 
 const intervalDays: Record<number, number> = {
   1: 1,
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   const userKey = session?.user?.id || session?.user?.email;
   if (!userKey) {
-    return NextResponse.json({ error: "未登录。" }, { status: 401 });
+    return NextResponse.json({ error: "请先登录。" }, { status: 401 });
   }
 
   const body = (await request.json()) as GradeBody;
@@ -42,33 +45,42 @@ export async function POST(request: Request) {
     );
   }
 
+  const nextReviewAt = addDays(new Date(), intervalDays[grade]);
+  const updatePayload: CardUpdate = {
+    next_review_at: nextReviewAt.toISOString(),
+    last_grade: grade,
+    updated_at: new Date().toISOString(),
+  };
+
   const supabase = getSupabase();
   if (supabase) {
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("cards")
       .select("id")
       .eq("id", cardId)
       .eq("user_id", userKey)
       .maybeSingle();
 
+    if (existingError) {
+      return NextResponse.json(
+        { error: "加载卡片失败。", details: existingError.message },
+        { status: 500 },
+      );
+    }
+
     if (!existing) {
       return NextResponse.json({ error: "卡片不存在。" }, { status: 404 });
     }
 
-    const nextReviewAt = addDays(new Date(), intervalDays[grade]);
     const { error } = await supabase
       .from("cards")
-      .update({
-        next_review_at: nextReviewAt.toISOString(),
-        last_grade: grade,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", cardId)
       .eq("user_id", userKey);
 
     if (error) {
       return NextResponse.json(
-        { error: "评分失败。", details: error.message },
+        { error: "提交评分失败。", details: error.message },
         { status: 500 },
       );
     }
@@ -82,35 +94,36 @@ export async function POST(request: Request) {
     });
   }
 
-  const existing = getSqlite()
-    .prepare(
+  const sqlite = getSqlite();
+  const existing = sqlite
+    .prepare<[string, string], { id: string }>(
       "SELECT id FROM cards WHERE id = ? AND user_id = ? LIMIT 1",
     )
-    .get(cardId, userKey) as { id: string } | undefined;
+    .get(cardId, userKey);
 
   if (!existing) {
     return NextResponse.json({ error: "卡片不存在。" }, { status: 404 });
   }
 
-  const nextReviewAt = addDays(new Date(), intervalDays[grade]);
+  sqlite
+    .prepare<[string, number, string, string, string]>(
+      `UPDATE cards
+       SET next_review_at = ?, last_grade = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    )
+    .run(
+      nextReviewAt.toISOString(),
+      grade,
+      updatePayload.updated_at ?? new Date().toISOString(),
+      cardId,
+      userKey,
+    );
 
-  getSqlite().prepare(
-    `UPDATE cards
-     SET next_review_at = ?, last_grade = ?, updated_at = ?
-     WHERE id = ? AND user_id = ?`,
-  ).run(
-    nextReviewAt.toISOString(),
-    grade,
-    new Date().toISOString(),
-    cardId,
-    userKey,
-  );
-
-  const card = {
-    id: cardId,
-    nextReviewAt,
-    lastGrade: grade,
-  };
-
-  return NextResponse.json({ card });
+  return NextResponse.json({
+    card: {
+      id: cardId,
+      nextReviewAt,
+      lastGrade: grade,
+    },
+  });
 }

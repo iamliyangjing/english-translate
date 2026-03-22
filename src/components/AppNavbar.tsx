@@ -1,16 +1,17 @@
-﻿"use client";
+"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 const navLinks = [
-  { href: "/", label: "翻译" },
+  { href: "/app", label: "工作台" },
   { href: "/cards", label: "卡片库" },
   { href: "/review", label: "复习" },
   { href: "/profile", label: "个人页" },
 ];
 
-export default function Navbar() {
+export default function AppNavbar() {
   const { data: session, status } = useSession();
   const loading = status === "loading";
 
@@ -19,7 +20,7 @@ export default function Navbar() {
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-6">
           <Link
-            href="/"
+            href="/app"
             className="text-xl font-semibold tracking-tight text-black"
           >
             LinguaCards
@@ -46,11 +47,13 @@ export default function Navbar() {
                 className="hidden items-center gap-2 rounded-full px-3 py-1 text-sm text-neutral-600 transition hover:bg-black/5 hover:text-black sm:inline-flex"
               >
                 {session.user.image ? (
-                  <img
+                  <Image
                     src={session.user.image}
                     alt="avatar"
+                    width={28}
+                    height={28}
                     className="h-7 w-7 rounded-full object-cover"
-                    referrerPolicy="no-referrer"
+                    unoptimized
                   />
                 ) : (
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-black/10 text-xs font-semibold text-neutral-700">

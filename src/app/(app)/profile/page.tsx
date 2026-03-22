@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import LoginPrompt from "@/components/LoginPrompt";
 
@@ -45,7 +46,8 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    const load = async () => {
+
+    const loadStats = async () => {
       try {
         const res = await fetch("/api/profile/stats");
         const data = await res.json();
@@ -58,10 +60,11 @@ export default function ProfilePage() {
         setStatsError("获取学习统计失败。");
       }
     };
-    load();
+
+    void loadStats();
   }, [user]);
 
-  const loadConfigs = async () => {
+  const loadConfigs = useCallback(async () => {
     if (!user) return;
     setConfigsLoading(true);
     setConfigsError(null);
@@ -78,11 +81,11 @@ export default function ProfilePage() {
     } finally {
       setConfigsLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    loadConfigs();
-  }, [user]);
+    void loadConfigs();
+  }, [loadConfigs]);
 
   const resetForm = () => {
     setName("");
@@ -216,11 +219,13 @@ export default function ProfilePage() {
         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4">
             {user.image ? (
-              <img
+              <Image
                 src={user.image}
                 alt="avatar"
+                width={64}
+                height={64}
                 className="h-16 w-16 rounded-full object-cover"
-                referrerPolicy="no-referrer"
+                unoptimized
               />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/10 text-xl font-semibold text-neutral-700">
@@ -312,7 +317,9 @@ export default function ProfilePage() {
               />
             </div>
             <div>
-              <label className="text-sm text-neutral-500">API Endpoint（可选）</label>
+              <label className="text-sm text-neutral-500">
+                API Endpoint（可选）
+              </label>
               <input
                 className="mt-2 w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
                 placeholder="https://api.minimaxi.com/v1"
@@ -344,7 +351,7 @@ export default function ProfilePage() {
               </label>
             ) : null}
             <button
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={!canSave}
               className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-400"
             >
@@ -405,14 +412,14 @@ export default function ProfilePage() {
                       </button>
                       {!config.isActive ? (
                         <button
-                          onClick={() => handleActivate(config.id)}
+                          onClick={() => void handleActivate(config.id)}
                           className="rounded-full border border-black/10 px-3 py-1.5 text-xs text-neutral-700 transition hover:bg-black/5"
                         >
                           设为当前
                         </button>
                       ) : null}
                       <button
-                        onClick={() => handleDelete(config.id)}
+                        onClick={() => void handleDelete(config.id)}
                         className="rounded-full border border-black/10 px-3 py-1.5 text-xs text-neutral-500 transition hover:bg-black/5"
                       >
                         删除

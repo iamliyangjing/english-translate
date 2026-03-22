@@ -1,7 +1,10 @@
-﻿import type { NextAuthOptions } from "next-auth";
+import type { NextAuthOptions } from "next-auth";
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
+import type { Database } from "@/lib/database.types";
 import { getSupabase } from "@/lib/supabase";
+
+type UserInsert = Database["public"]["Tables"]["users"]["Insert"];
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -34,20 +37,20 @@ export const authOptions: NextAuthOptions = {
 
       const id = `${account.provider}:${account.providerAccountId}`;
       const now = new Date().toISOString();
+      const payload: UserInsert = {
+        id,
+        provider: account.provider,
+        provider_account_id: account.providerAccountId,
+        email: user.email ?? null,
+        name: user.name ?? null,
+        image: user.image ?? null,
+        updated_at: now,
+        last_login_at: now,
+      };
 
-      const { error } = await supabase.from("users").upsert(
-        {
-          id,
-          provider: account.provider,
-          provider_account_id: account.providerAccountId,
-          email: user.email ?? null,
-          name: user.name ?? null,
-          image: user.image ?? null,
-          updated_at: now,
-          last_login_at: now,
-        },
-        { onConflict: "id" },
-      );
+      const { error } = await supabase.from("users").upsert(payload, {
+        onConflict: "id",
+      });
 
       if (error) {
         console.error("Supabase user upsert failed", error.message);

@@ -1,18 +1,28 @@
-import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
+import type BetterSqliteDatabase from "better-sqlite3";
 
-const useSupabase = Boolean(process.env.SUPABASE_URL);
+const require = createRequire(import.meta.url);
 
-let db: Database | null = null;
+const hasSupabaseConfig = Boolean(
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY,
+);
 
-if (!useSupabase) {
+let db: BetterSqliteDatabase | null = null;
+
+const initSqlite = () => {
+  if (db) {
+    return db;
+  }
+
   const dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
   const dbPath = path.join(dataDir, "app.db");
+  const Database = require("better-sqlite3") as typeof BetterSqliteDatabase;
   const sqlite = new Database(dbPath);
 
   sqlite.pragma("journal_mode = WAL");
@@ -65,13 +75,16 @@ if (!useSupabase) {
   }
 
   db = sqlite;
-}
-
-export { db };
+  return sqlite;
+};
 
 export const getSqlite = () => {
-  if (!db) {
-    throw new Error("SQLite disabled because SUPABASE_URL is set.");
+  if (hasSupabaseConfig) {
+    throw new Error(
+      "SQLite disabled because SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.",
+    );
   }
-  return db;
+  return initSqlite();
 };
+
+export const hasSqliteFallback = () => !hasSupabaseConfig;

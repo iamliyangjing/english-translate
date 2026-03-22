@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { randomUUID } from "node:crypto";
+import type { Database } from "@/lib/database.types";
 import { authOptions } from "@/lib/auth";
 import { getSqlite } from "@/lib/db";
 import { getSupabase } from "@/lib/supabase";
-import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
@@ -24,28 +25,21 @@ type UpdateCardBody = {
   tags?: string;
 };
 
-type CardRow = {
-  id: string;
-  user_id: string;
-  user_email: string | null;
-  source_text: string;
-  target_text: string;
-  source_lang: string;
-  target_lang: string;
-  pronunciation: string | null;
-  tags: string | null;
-  created_at: string;
-  updated_at: string;
-  next_review_at: string;
-  last_grade: number | null;
-};
+type CardRow = Database["public"]["Tables"]["cards"]["Row"];
+type CardInsert = Database["public"]["Tables"]["cards"]["Insert"];
+type CardUpdate = Database["public"]["Tables"]["cards"]["Update"];
+
+type CardListItem = Pick<
+  CardRow,
+  "id" | "source_text" | "target_text" | "pronunciation" | "tags" | "created_at"
+>;
 
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
     if (!userKey) {
-      return NextResponse.json({ error: "未登录。" }, { status: 401 });
+      return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -55,7 +49,7 @@ export async function GET(request: Request) {
     const supabase = getSupabase();
     if (supabase) {
       let builder = supabase
-        .from<CardRow>("cards")
+        .from("cards")
         .select("id, source_text, target_text, pronunciation, tags, created_at")
         .eq("user_id", userKey)
         .order("created_at", { ascending: false })
@@ -73,12 +67,12 @@ export async function GET(request: Request) {
       const { data, error } = await builder;
       if (error) {
         return NextResponse.json(
-          { error: "卡片加载失败。", details: error.message },
+          { error: "加载卡片失败。", details: error.message },
           { status: 500 },
         );
       }
 
-      const cards = (data ?? []).map((row) => ({
+      const cards = (data ?? []).map((row: CardListItem) => ({
         id: row.id,
         sourceText: row.source_text,
         targetText: row.target_text,
@@ -91,7 +85,7 @@ export async function GET(request: Request) {
     }
 
     const filters: string[] = ["user_id = ?"];
-    const values: (string | number)[] = [userKey];
+    const values: string[] = [userKey];
 
     if (query) {
       filters.push("(source_text LIKE ? OR target_text LIKE ?)");
@@ -112,12 +106,21 @@ export async function GET(request: Request) {
       LIMIT 200
     `;
 
-    const cards = getSqlite().prepare(sql).all(...values);
+    const cards = getSqlite()
+      .prepare<string[], {
+        id: string;
+        sourceText: string;
+        targetText: string;
+        pronunciation: string | null;
+        tags: string | null;
+        createdAt: string;
+      }>(sql)
+      .all(...values);
 
     return NextResponse.json({ cards });
   } catch (error) {
     return NextResponse.json(
-      { error: "卡片加载失败。", details: String(error) },
+      { error: "加载卡片失败。", details: String(error) },
       { status: 500 },
     );
   }
@@ -128,7 +131,7 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
     if (!userKey) {
-      return NextResponse.json({ error: "未登录。" }, { status: 401 });
+      return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
     const body = (await request.json()) as CreateCardBody;
@@ -137,34 +140,34 @@ export async function POST(request: Request) {
 
     if (!sourceText || !targetText) {
       return NextResponse.json(
-        { error: "需要原文与译文。" },
+        { error: "请填写原文和译文。" },
         { status: 400 },
       );
     }
 
     const now = new Date().toISOString();
-    const nextReviewAt = now;
     const id = randomUUID();
+    const payload: CardInsert = {
+      id,
+      user_id: userKey,
+      user_email: session?.user?.email ?? null,
+      source_text: sourceText,
+      target_text: targetText,
+      source_lang: body.sourceLang?.trim() || "English",
+      target_lang: body.targetLang?.trim() || "Chinese",
+      pronunciation: body.pronunciation?.trim() || null,
+      tags: body.tags?.trim() || null,
+      created_at: now,
+      updated_at: now,
+      next_review_at: now,
+      last_grade: null,
+    };
 
     const supabase = getSupabase();
     if (supabase) {
       const { data, error } = await supabase
-        .from<CardRow>("cards")
-        .insert({
-          id,
-          user_id: userKey,
-          user_email: session?.user?.email ?? null,
-          source_text: sourceText,
-          target_text: targetText,
-          source_lang: body.sourceLang?.trim() || "English",
-          target_lang: body.targetLang?.trim() || "Chinese",
-          pronunciation: body.pronunciation?.trim() || null,
-          tags: body.tags?.trim() || null,
-          created_at: now,
-          updated_at: now,
-          next_review_at: nextReviewAt,
-          last_grade: null,
-        })
+        .from("cards")
+        .insert(payload)
         .select("id, source_text, target_text")
         .single();
 
@@ -184,26 +187,44 @@ export async function POST(request: Request) {
       });
     }
 
-    getSqlite().prepare(
-      `INSERT INTO cards (
-        id, user_id, user_email, source_text, target_text, source_lang, target_lang,
-        pronunciation, tags, created_at, updated_at, next_review_at, last_grade
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      id,
-      userKey,
-      session?.user?.email ?? null,
-      sourceText,
-      targetText,
-      body.sourceLang?.trim() || "English",
-      body.targetLang?.trim() || "Chinese",
-      body.pronunciation?.trim() || null,
-      body.tags?.trim() || null,
-      now,
-      now,
-      nextReviewAt,
-      null,
-    );
+    getSqlite()
+      .prepare<
+        [
+          string,
+          string,
+          string | null,
+          string,
+          string,
+          string,
+          string,
+          string | null,
+          string | null,
+          string,
+          string,
+          string,
+          number | null,
+        ]
+      >(
+        `INSERT INTO cards (
+          id, user_id, user_email, source_text, target_text, source_lang, target_lang,
+          pronunciation, tags, created_at, updated_at, next_review_at, last_grade
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        userKey,
+        session?.user?.email ?? null,
+        sourceText,
+        targetText,
+        body.sourceLang?.trim() || "English",
+        body.targetLang?.trim() || "Chinese",
+        body.pronunciation?.trim() || null,
+        body.tags?.trim() || null,
+        now,
+        now,
+        now,
+        null,
+      );
 
     return NextResponse.json({
       card: {
@@ -225,41 +246,48 @@ export async function PATCH(request: Request) {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
     if (!userKey) {
-      return NextResponse.json({ error: "未登录。" }, { status: 401 });
+      return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
     const body = (await request.json()) as UpdateCardBody;
     const id = body.id?.trim();
+    const sourceText = body.sourceText?.trim();
+    const targetText = body.targetText?.trim();
+
     if (!id) {
       return NextResponse.json({ error: "缺少卡片 ID。" }, { status: 400 });
     }
 
-    const existing = getSqlite()
-      .prepare("SELECT id FROM cards WHERE id = ? AND user_id = ? LIMIT 1")
-      .get(id, userKey) as { id: string } | undefined;
-
-    if (!existing) {
-      return NextResponse.json({ error: "卡片不存在。" }, { status: 404 });
-    }
-
-    const sourceText = body.sourceText?.trim();
-    const targetText = body.targetText?.trim();
-
     if (!sourceText || !targetText) {
       return NextResponse.json(
-        { error: "需要原文与译文。" },
+        { error: "请填写原文和译文。" },
         { status: 400 },
       );
     }
 
+    const payload: CardUpdate = {
+      source_text: sourceText,
+      target_text: targetText,
+      pronunciation: body.pronunciation?.trim() || null,
+      tags: body.tags?.trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+
     const supabase = getSupabase();
     if (supabase) {
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("cards")
         .select("id")
         .eq("id", id)
         .eq("user_id", userKey)
         .maybeSingle();
+
+      if (existingError) {
+        return NextResponse.json(
+          { error: "加载卡片失败。", details: existingError.message },
+          { status: 500 },
+        );
+      }
 
       if (!existing) {
         return NextResponse.json({ error: "卡片不存在。" }, { status: 404 });
@@ -267,13 +295,7 @@ export async function PATCH(request: Request) {
 
       const { error } = await supabase
         .from("cards")
-        .update({
-          source_text: sourceText,
-          target_text: targetText,
-          pronunciation: body.pronunciation?.trim() || null,
-          tags: body.tags?.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(payload)
         .eq("id", id)
         .eq("user_id", userKey);
 
@@ -287,19 +309,32 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: true });
     }
 
-    getSqlite().prepare(
-      `UPDATE cards
-       SET source_text = ?, target_text = ?, pronunciation = ?, tags = ?, updated_at = ?
-       WHERE id = ? AND user_id = ?`,
-    ).run(
-      sourceText,
-      targetText,
-      body.pronunciation?.trim() || null,
-      body.tags?.trim() || null,
-      new Date().toISOString(),
-      id,
-      userKey,
-    );
+    const sqlite = getSqlite();
+    const existing = sqlite
+      .prepare<[string, string], { id: string }>(
+        "SELECT id FROM cards WHERE id = ? AND user_id = ? LIMIT 1",
+      )
+      .get(id, userKey);
+
+    if (!existing) {
+      return NextResponse.json({ error: "卡片不存在。" }, { status: 404 });
+    }
+
+    sqlite
+      .prepare<[string, string, string | null, string | null, string, string, string]>(
+        `UPDATE cards
+         SET source_text = ?, target_text = ?, pronunciation = ?, tags = ?, updated_at = ?
+         WHERE id = ? AND user_id = ?`,
+      )
+      .run(
+        sourceText,
+        targetText,
+        body.pronunciation?.trim() || null,
+        body.tags?.trim() || null,
+        payload.updated_at ?? new Date().toISOString(),
+        id,
+        userKey,
+      );
 
     return NextResponse.json({ ok: true });
   } catch (error) {
@@ -315,7 +350,7 @@ export async function DELETE(request: Request) {
     const session = await getServerSession(authOptions);
     const userKey = session?.user?.id || session?.user?.email;
     if (!userKey) {
-      return NextResponse.json({ error: "未登录。" }, { status: 401 });
+      return NextResponse.json({ error: "请先登录。" }, { status: 401 });
     }
 
     const body = (await request.json()) as { id?: string };
@@ -338,13 +373,13 @@ export async function DELETE(request: Request) {
           { status: 500 },
         );
       }
+
       return NextResponse.json({ ok: true });
     }
 
-    getSqlite().prepare("DELETE FROM cards WHERE id = ? AND user_id = ?").run(
-      id,
-      userKey,
-    );
+    getSqlite()
+      .prepare<[string, string]>("DELETE FROM cards WHERE id = ? AND user_id = ?")
+      .run(id, userKey);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

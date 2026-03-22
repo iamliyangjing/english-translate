@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
-import Navbar from "@/components/Navbar";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-sans",
@@ -15,8 +14,11 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "LinguaCards",
-  description: "翻译、记忆、复习，一站式英语学习体验。",
+  title: {
+    default: "LinguaCards",
+    template: "%s | LinguaCards",
+  },
+  description: "翻译、复习、记忆，一站式英语学习体验。",
 };
 
 export default function RootLayout({
@@ -29,10 +31,7 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${fraunces.variable} antialiased`}
       >
-        <Providers>
-          <Navbar />
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

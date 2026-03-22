@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { randomUUID } from "node:crypto";
+import type { Database } from "@/lib/database.types";
 import { authOptions } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
 import { getSqlite } from "@/lib/db";
-import { randomUUID } from "node:crypto";
 
 export const runtime = "nodejs";
 
-type ModelConfigRow = {
-  id: string;
-  user_id: string;
-  name: string;
-  model: string;
-  api_endpoint: string | null;
-  api_key: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
+type ModelConfigInsert = Database["public"]["Tables"]["model_configs"]["Insert"];
 
 type CreateModelConfigBody = {
   name?: string;
@@ -25,6 +16,16 @@ type CreateModelConfigBody = {
   apiEndpoint?: string;
   apiKey?: string;
   setActive?: boolean;
+};
+
+type SqliteModelConfigRow = {
+  id: string;
+  name: string;
+  model: string;
+  apiEndpoint: string | null;
+  isActive: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export async function GET() {
@@ -38,7 +39,7 @@ export async function GET() {
     const supabase = getSupabase();
     if (supabase) {
       const { data, error } = await supabase
-        .from<ModelConfigRow>("model_configs")
+        .from("model_configs")
         .select("id, name, model, api_endpoint, is_active, created_at, updated_at")
         .eq("user_id", userKey)
         .order("created_at", { ascending: false });
@@ -64,7 +65,7 @@ export async function GET() {
     }
 
     const configs = getSqlite()
-      .prepare(
+      .prepare<[string], SqliteModelConfigRow>(
         `SELECT id, name, model,
                 api_endpoint as apiEndpoint,
                 is_active as isActive,
@@ -75,7 +76,7 @@ export async function GET() {
          ORDER BY datetime(created_at) DESC`,
       )
       .all(userKey)
-      .map((row: any) => ({
+      .map((row) => ({
         ...row,
         isActive: Boolean(row.isActive),
         apiEndpoint: row.apiEndpoint ?? "",
@@ -107,36 +108,37 @@ export async function POST(request: Request) {
 
     if (!name || !model || !apiKey) {
       return NextResponse.json(
-        { error: "请填写名称、模型和 API Key。" },
+        { error: "请填写配置名称、模型和 API Key。" },
         { status: 400 },
       );
     }
 
     const now = new Date().toISOString();
     const id = randomUUID();
+    const payload: ModelConfigInsert = {
+      id,
+      user_id: userKey,
+      name,
+      model,
+      api_endpoint: apiEndpoint,
+      api_key: apiKey,
+      is_active: setActive,
+      created_at: now,
+      updated_at: now,
+    };
 
     const supabase = getSupabase();
     if (supabase) {
       if (setActive) {
         await supabase
-          .from<ModelConfigRow>("model_configs")
+          .from("model_configs")
           .update({ is_active: false, updated_at: now })
           .eq("user_id", userKey);
       }
 
       const { data, error } = await supabase
-        .from<ModelConfigRow>("model_configs")
-        .insert({
-          id,
-          user_id: userKey,
-          name,
-          model,
-          api_endpoint: apiEndpoint,
-          api_key: apiKey,
-          is_active: setActive,
-          created_at: now,
-          updated_at: now,
-        })
+        .from("model_configs")
+        .insert(payload)
         .select("id, name, model, api_endpoint, is_active, created_at, updated_at")
         .single();
 
@@ -164,13 +166,15 @@ export async function POST(request: Request) {
     const tx = sqlite.transaction(() => {
       if (setActive) {
         sqlite
-          .prepare(
+          .prepare<[string, string]>(
             "UPDATE model_configs SET is_active = 0, updated_at = ? WHERE user_id = ?",
           )
           .run(now, userKey);
       }
       sqlite
-        .prepare(
+        .prepare<
+          [string, string, string, string, string | null, string, number, string, string]
+        >(
           `INSERT INTO model_configs (
              id, user_id, name, model, api_endpoint, api_key,
              is_active, created_at, updated_at

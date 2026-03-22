@@ -1,8 +1,7 @@
-﻿import TranslatePanel from "@/components/TranslatePanel";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 
-export default function Home() {
+export default function LandingPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-10">
       <section className="relative overflow-hidden rounded-[32px] border border-black/10 bg-white/80 p-10 shadow-sm">
@@ -24,16 +23,16 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/profile"
+                href="/app"
                 className="rounded-full bg-neutral-900 px-5 py-2 text-sm font-medium text-white"
               >
-                去配置模型
+                进入应用
               </Link>
               <Link
-                href="/cards"
+                href="/signin"
                 className="rounded-full border border-black/10 px-5 py-2 text-sm font-medium text-neutral-800"
               >
-                查看卡片库
+                登录同步学习记录
               </Link>
             </div>
           </div>
@@ -69,7 +68,10 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center">
+      <section
+        id="preview"
+        className="grid gap-6 md:grid-cols-[1.1fr_0.9fr] md:items-center"
+      >
         <div className="rounded-[28px] border border-black/10 bg-white/80 p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
@@ -85,7 +87,7 @@ export default function Home() {
             </div>
           </div>
           <p className="mt-3 text-sm text-neutral-600">
-            翻译、卡片库、复习流程都在一个页面完成，保持专注。
+            翻译、卡片库、复习流程都在一个产品里完成，保持专注。
           </p>
         </div>
         <div className="relative">
@@ -101,9 +103,7 @@ export default function Home() {
         </div>
       </section>
 
-      <TranslatePanel />
-
-      <section className="grid gap-6 md:grid-cols-3">
+      <section id="features" className="grid gap-6 md:grid-cols-3">
         {[
           {
             title: "翻译 + 卡片一体化",
@@ -140,16 +140,16 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link
-              href="/cards"
+              href="/app"
               className="rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-900"
             >
-              进入卡片库
+              进入工作台
             </Link>
             <Link
-              href="/review"
+              href="/signin"
               className="rounded-full border border-white/30 px-4 py-2 text-sm font-medium"
             >
-              开始复习
+              登录后继续学习
             </Link>
           </div>
         </div>

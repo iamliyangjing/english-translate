@@ -1,7 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
 import LoginPrompt from "@/components/LoginPrompt";
 
 type Card = {
@@ -31,44 +31,58 @@ export default function CardsTable() {
   const isAuthed = status === "authenticated";
   const authLoading = status === "loading";
 
-  const loadCards = async () => {
+  const queryRef = useRef(query);
+  const tagRef = useRef(tag);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  useEffect(() => {
+    tagRef.current = tag;
+  }, [tag]);
+
+  const loadCards = useCallback(async () => {
     setLoading(true);
     setMessage(null);
     setSelected(new Set());
+
     const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
-    if (tag.trim()) params.set("tag", tag.trim());
+    const currentQuery = queryRef.current.trim();
+    const currentTag = tagRef.current.trim();
+    if (currentQuery) params.set("q", currentQuery);
+    if (currentTag) params.set("tag", currentTag);
 
     try {
       const res = await fetch(`/api/cards?${params.toString()}`);
       const data = await res.json();
       if (!res.ok) {
-        setMessage(data.error ?? "加载失败，请先登录。");
+        setMessage(data.error ?? "加载卡片失败，请先登录。");
         setCards([]);
         return;
       }
       setCards(data.cards ?? []);
-    } catch (error) {
-      setMessage("加载失败，请检查网络。");
+    } catch {
+      setMessage("加载卡片失败，请检查网络连接。");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
     if (isAuthed) {
-      loadCards();
+      void loadCards();
     } else {
       setLoading(false);
     }
-  }, [isAuthed, authLoading]);
+  }, [authLoading, isAuthed, loadCards]);
 
   if (!isAuthed && !loading && !authLoading) {
     return (
       <LoginPrompt
         title="登录后管理卡片"
-        description="登录后可查看、编辑、批量管理并导出 Anki。"
+        description="登录后可查看、编辑、批量管理并导出 Anki 卡片。"
       />
     );
   }
@@ -128,7 +142,7 @@ export default function CardsTable() {
       }
       setEditingId(null);
       await loadCards();
-    } catch (error) {
+    } catch {
       setMessage("更新失败，请稍后再试。");
     }
   };
@@ -147,7 +161,7 @@ export default function CardsTable() {
         return;
       }
       await loadCards();
-    } catch (error) {
+    } catch {
       setMessage("删除失败，请稍后再试。");
     }
   };
@@ -167,7 +181,7 @@ export default function CardsTable() {
         return;
       }
       await loadCards();
-    } catch (error) {
+    } catch {
       setMessage("批量删除失败，请稍后再试。");
     }
   };
@@ -198,12 +212,12 @@ export default function CardsTable() {
         />
         <input
           className="w-full rounded-2xl border border-black/10 bg-white px-4 py-3 text-sm shadow-sm outline-none transition focus:border-black/30"
-          placeholder="标签过滤，如 travel"
+          placeholder="标签过滤，例如 travel"
           value={tag}
           onChange={(event) => setTag(event.target.value)}
         />
         <button
-          onClick={loadCards}
+          onClick={() => void loadCards()}
           className="rounded-2xl border border-black/10 px-4 py-3 text-sm transition hover:bg-black/5"
         >
           筛选
@@ -220,7 +234,7 @@ export default function CardsTable() {
           全选当前列表
         </label>
         <button
-          onClick={bulkDelete}
+          onClick={() => void bulkDelete()}
           disabled={selected.size === 0}
           className="rounded-full border border-black/10 px-3 py-2 text-sm transition hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-40"
         >
@@ -292,14 +306,11 @@ export default function CardsTable() {
                   </div>
                 </div>
                 <div className="min-w-[180px] text-xs text-neutral-500">
-                  <p>
-                    添加时间：
-                    {new Date(card.createdAt).toLocaleDateString()}
-                  </p>
+                  <p>添加时间：{new Date(card.createdAt).toLocaleDateString()}</p>
                   {editingId === card.id ? (
                     <>
                       <label className="mt-3 block text-[11px] text-neutral-400">
-                        发音/备注
+                        发音 / 备注
                       </label>
                       <input
                         className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
@@ -339,7 +350,7 @@ export default function CardsTable() {
                 {editingId === card.id ? (
                   <>
                     <button
-                      onClick={() => saveEdit(card.id)}
+                      onClick={() => void saveEdit(card.id)}
                       className="rounded-full bg-neutral-900 px-4 py-2 text-xs font-medium text-white"
                     >
                       保存
@@ -360,7 +371,7 @@ export default function CardsTable() {
                       编辑
                     </button>
                     <button
-                      onClick={() => deleteCard(card.id)}
+                      onClick={() => void deleteCard(card.id)}
                       className="rounded-full border border-black/10 px-4 py-2 text-xs text-red-600"
                     >
                       删除
